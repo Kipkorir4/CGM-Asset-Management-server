@@ -1,32 +1,41 @@
-from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS
+from models import db, User
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-db = SQLAlchemy(app)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cgm.db'
+app.config['SECRET_KEY'] = 'your_secret_key'  # Required for session management
+db.init_app(app)
 CORS(app)  # Enable CORS for all routes
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(120), nullable=False)
-    role = db.Column(db.String(80), nullable=False)
 
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
+    requested_role = data.get('role')  # Get the role from the request
 
     # Log incoming data for debugging
-    app.logger.info(f"Login attempt: {username}")
+    app.logger.info(f"Login attempt: {username} for role {requested_role}")
 
     user = User.query.filter_by(username=username, password=password).first()
     if user:
-        return jsonify({'message': f'Welcome, {user.role}'}), 200
+        # Normalize both user role and requested role by lowercasing and replacing hyphens with spaces
+        normalized_user_role = user.role.lower().replace(' ', '-')
+        normalized_requested_role = requested_role.lower().replace(' ', '-')
+        
+        if normalized_user_role != normalized_requested_role:
+            return jsonify({'message': 'Incorrect role for the provided credentials'}), 401
+        
+        session['user_id'] = user.id
+        return jsonify({'message': f'Welcome, {user.role}', 'role': user.role}), 200
     else:
         return jsonify({'message': 'Invalid username or password'}), 401
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.pop('user_id', None)
+    return jsonify({'message': 'Logged out successfully'}), 200
 
 def init_db():
     with app.app_context():
