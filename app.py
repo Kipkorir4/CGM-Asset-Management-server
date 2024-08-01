@@ -4,7 +4,7 @@ from models import db, User
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cgm.db'
-app.config['SECRET_KEY'] = 'your_secret_key'  # Required for session management
+app.config['SECRET_KEY'] = 'aiileonikumotomanze'  # Required for session management
 db.init_app(app)
 CORS(app)  # Enable CORS for all routes
 
