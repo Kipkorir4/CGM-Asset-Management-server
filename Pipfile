@@ -8,6 +8,9 @@ flask = "*"
 flask-sqlalchemy = "*"
 flask-cors = "*"
 flask-bcrypt = "*"
+datetime = "*"
+flask-migrate = "*"
+flask-restful = "*"
 
 [dev-packages]
 
