@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+import os
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -8,7 +12,14 @@ from datetime import date
 import json
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://cgm_user:HF4bE9OeqJmBK4U8QYTqx3szQEBoAbfz@dpg-cqp00b88fa8c73c3p1qg-a.oregon-postgres.render.com/cgm'
+
+environment = os.environ.get("ENVIRONMENT")
+
+if environment == "development":
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cgm.db'
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URI")
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'aiileonikumotomanze'
 
@@ -32,7 +43,6 @@ class CheckSession(Resource):
         user = User.query.get(user_id)
         if not user:
             return {}, 204
-
         return user.to_dict(), 200
 
 api.add_resource(ClearSession, '/clear-session')
@@ -73,6 +83,8 @@ def logout():
 
 @app.route('/complaints/<int:user_id>', methods=['GET'])
 def get_complaints(user_id):
+    print("SESSION: ", session)
+    print("USER_ID: ", session['user_id'])
     if 'user_id' not in session or session['user_id'] != user_id:
         return jsonify({'message': 'Unauthorized'}), 403
 
@@ -122,8 +134,11 @@ def handle_complaints():
 
 @app.route('/complaints/<int:user_id>', methods=['GET'])
 def get_user_complaints(user_id):
-    # if 'user_id' not in session or session['user_id'] != user_id:
-        # return jsonify({'message': 'Unauthorized'}), 403
+
+    # print("SESSION: ", session) 
+    print("XXXXXX")
+    if 'user_id' not in session or session['user_id'] != user_id:
+        return jsonify({'message': 'Unauthorized'}), 403
 
     complaints = Complaint.query.filter_by(user_id=user_id).all()
     
