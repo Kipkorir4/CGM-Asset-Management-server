@@ -8,7 +8,7 @@ from datetime import date
 import json
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cgm.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://cgm_user:HF4bE9OeqJmBK4U8QYTqx3szQEBoAbfz@dpg-cqp00b88fa8c73c3p1qg-a.oregon-postgres.render.com/cgm'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'aiileonikumotomanze'
 
