@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 from flask_restful import Api, Resource
 from models import db, User, Complaint, Budget
 from datetime import date
+import json
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cgm.db'
@@ -55,9 +56,13 @@ def login():
         
         session['user_id'] = user.id
         session.modified = True 
-        print(session)
+        userObjs =  {
+            "user_id": user.id,
+            "username": user.username,
+            "role": user.role,
+        }
         # Ensure the session is marked as modified
-        return jsonify({'message': f'Welcome, {user.role}', 'role': user.role}), 200
+        return jsonify({'message': f'Welcome, {user.role}', 'role': user.role, "user": userObjs}), 200
     else:
         return jsonify({'message': 'Invalid username or password'}), 401
 
@@ -79,45 +84,41 @@ def get_complaints(user_id):
         'date': c.date.isoformat()
     } for c in complaints])
 
-@app.route('/complaints', methods=['GET', 'POST'])
+
+
+
+
+@app.route('/complaints', methods=['POST'])
 def handle_complaints():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
-
-    if request.method == 'GET':
-        complaints = Complaint.query.all()
-        return jsonify([{
-            'tenant': c.user.username,
-            'complaint_number': c.id,
-            'category': c.category,
-            'description': c.description,
-            'status': c.status,
-            'amount_allocated': c.amount_allocated,
-            'date': c.date.isoformat()  # Adding the date field
-        } for c in complaints])
-
+    # print(session.keys())
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
     if request.method == 'POST':
         data = request.get_json()
-        user_id = session['user_id']
-        category = data.get('category')
-        description = data.get('description')
-        complaint_date = date.today()
+        print("data:", data)
+        # user_id = session['user_id']
+                # print(session['useer_id'])
+        return jsonify({'success': True, 'complaint_number': "Done"})
 
-        new_complaint = Complaint(
-            user_id=user_id,
-            category=category,
-            description=description,
-            date=complaint_date,
-            status='Pending'  # Set the default status to Pending
-        )
-        db.session.add(new_complaint)
-        db.session.commit()
+        # category = data.get('category')
+        # description = data.get('description')
+        # complaint_date = date.today()
 
-        # Generate complaint number
-        new_complaint.complaint_number = f"CMP{new_complaint.id:05d}"  # CMP00001, CMP00002, etc.
-        db.session.commit()
+        # new_complaint = Complaint(
+        #     # user_id=user_id,
+        #     category=category,
+        #     description=description,
+        #     date=complaint_date,
+        #     status='Pending'  # Set the default status to Pending
+        # )
+        # db.session.add(new_complaint)
+        # db.session.commit()
 
-        return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
+        # # Generate complaint number
+        # new_complaint.complaint_number = f"CMP{new_complaint.id:05d}"  # CMP00001, CMP00002, etc.
+        # db.session.commit()
+
+        # return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
 
 
 @app.route('/complaints/<int:user_id>', methods=['GET'])
