@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from sqlalchemy.ext.hybrid import hybrid_property
+from datetime import date
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -31,8 +32,6 @@ class User(db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
-from sqlalchemy.schema import UniqueConstraint
-
 class Complaint(db.Model):
     __tablename__ = 'complaints'
     
@@ -40,15 +39,41 @@ class Complaint(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     category = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    date = db.Column(db.Date, nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
     amount_allocated = db.Column(db.Float, default=0.0, nullable=True)
     complaint_number = db.Column(db.String(20), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='Pending')  # Default status
 
     __table_args__ = (
-        UniqueConstraint('complaint_number', name='uq_complaint_number'),
+        db.UniqueConstraint('complaint_number', name='uq_complaint_number'),
     )
 
     user = db.relationship('User', backref=db.backref('complaints', lazy=True))
 
     def __repr__(self):
         return f'<Complaint {self.complaint_number} - {self.category}>'
+
+    def allocate_amount(self, amount):
+        budget = Budget.query.filter_by(category=self.category).first()
+        if budget and budget.balance >= amount:
+            self.amount_allocated = amount
+            budget.balance -= amount
+            self.status = 'Approved'
+        else:
+            self.status = 'Denied'
+        db.session.commit()
+
+class Budget(db.Model):
+    __tablename__ = 'budgets'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(50), unique=True, nullable=False)
+    total_budget = db.Column(db.Float, nullable=False)
+    balance = db.Column(db.Float, nullable=False)
+
+    def __repr__(self):
+        return f'<Budget {self.category} - Total: {self.total_budget}, Balance: {self.balance}>'
+
+    def update_balance(self, amount):
+        self.balance -= amount
+        db.session.commit()

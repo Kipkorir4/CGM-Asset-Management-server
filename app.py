@@ -3,7 +3,7 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_restful import Api, Resource
-from models import db, User, Complaint
+from models import db, User, Complaint, Budget
 from datetime import date
 
 app = Flask(__name__)
@@ -79,35 +79,64 @@ def get_complaints(user_id):
         'date': c.date.isoformat()
     } for c in complaints])
 
-@app.route('/complaints', methods=['POST'])
-def file_complaint():
-    print(session,'session results 201')
+@app.route('/complaints', methods=['GET', 'POST'])
+def handle_complaints():
+    if 'user_id' not in session:
+        return jsonify({'message': 'Unauthorized'}), 403
 
-    if 'user_id' in session:
-        
+    if request.method == 'GET':
+        complaints = Complaint.query.all()
+        return jsonify([{
+            'tenant': c.user.username,
+            'complaint_number': c.id,
+            'category': c.category,
+            'description': c.description,
+            'status': c.status,
+            'amount_allocated': c.amount_allocated,
+            'date': c.date.isoformat()  # Adding the date field
+        } for c in complaints])
+
+    if request.method == 'POST':
         data = request.get_json()
         user_id = session['user_id']
         category = data.get('category')
         description = data.get('description')
         complaint_date = date.today()
 
-    # if user_id != session['user_id']:
-    #     return jsonify({'message': 'Unauthorized'}), 403
+        new_complaint = Complaint(
+            user_id=user_id,
+            category=category,
+            description=description,
+            date=complaint_date,
+            status='Pending'  # Set the default status to Pending
+        )
+        db.session.add(new_complaint)
+        db.session.commit()
 
-    new_complaint = Complaint(
-        user_id=user_id,
-        category=category,
-        description=description,
-        date=complaint_date
-    )
-    db.session.add(new_complaint)
-    db.session.commit()
+        # Generate complaint number
+        new_complaint.complaint_number = f"CMP{new_complaint.id:05d}"  # CMP00001, CMP00002, etc.
+        db.session.commit()
 
-    # Generate complaint number
-    new_complaint.complaint_number = f"CMP{new_complaint.id:05d}"  # CMP00001, CMP00002, etc.
-    db.session.commit()
+        return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
 
-    return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
+
+@app.route('/complaints/<int:user_id>', methods=['GET'])
+def get_user_complaints(user_id):
+    # if 'user_id' not in session or session['user_id'] != user_id:
+        # return jsonify({'message': 'Unauthorized'}), 403
+
+    complaints = Complaint.query.filter_by(user_id=user_id).all()
+    
+    return jsonify([{
+        'id': c.id,
+        # 'complaint_number': c.complaint_number,
+        'category': c.category,
+        'description': c.description,
+        'status': c.status,
+        # 'amount_allocated': c.amount_allocated,
+        'date': c.date.isoformat()  # Formatting the date
+    } for c in complaints])
+
 
 @app.route('/users/<role>', methods=['GET'])
 def get_users_by_role(role):
@@ -132,58 +161,55 @@ def get_all_complaints():
         'amount_allocated': c.amount_allocated
     } for c in complaints])
 
-@app.route('/accepted-complaints', methods=['GET'])
-def get_accepted_complaints():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+@app.route('/setup_budget', methods=['POST'])
+def setup_budget():
+    data = request.get_json()
+    category = data.get('category')
+    total_budget = data.get('total_budget')
+    balance = total_budget
 
-    complaints = Complaint.query.filter(Complaint.amount_allocated == 0).all()
-    return jsonify([{
-        'id': c.id,
-        'complaintNumber': c.complaint_number,
-        'category': c.category,
-        'budgetBalance': c.budget_balance,
-        'amountAllocated': c.amount_allocated
-    } for c in complaints])
+    new_budget = Budget(category=category, total_budget=total_budget, balance=balance)
+    db.session.add(new_budget)
+    db.session.commit()
 
-@app.route('/allocate-budget/<int:complaint_id>', methods=['POST'])
-def allocate_budget(complaint_id):
+    return jsonify({'message': 'Budget set up successfully'}), 201
+
+@app.route('/allocate_budget', methods=['POST'])
+def allocate_budget():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
 
     data = request.get_json()
-    amount = data.get('amount')
+    complaint_id = data.get('complaint_id')
+    allocation_amount = data.get('allocation_amount')
 
     complaint = Complaint.query.get(complaint_id)
     if not complaint:
         return jsonify({'message': 'Complaint not found'}), 404
 
-    # Perform budget allocation logic here
+    budget = Budget.query.filter_by(category=complaint.category).first()
+    if not budget:
+        return jsonify({'message': f'No budget found for category {complaint.category}'}), 404
 
-    complaint.amount_allocated = amount
+    if allocation_amount > budget.balance:
+        return jsonify({'message': 'Insufficient budget balance'}), 400
+
+    # Update the complaint and budget balance
+    complaint.amount_allocated = allocation_amount
+    complaint.status = 'Approved'
+    budget.balance -= allocation_amount
+
     db.session.commit()
 
-    return jsonify({'success': True, 'complaint_number': complaint.complaint_number})
+    return jsonify({'success': True, 'complaint_number': complaint.complaint_number, 'new_balance': budget.balance})
 
-@app.route('/decline-complaint/<int:complaint_id>', methods=['POST'])
-def decline_complaint(complaint_id):
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
-
-    complaint = Complaint.query.get(complaint_id)
-    if not complaint:
-        return jsonify({'message': 'Complaint not found'}), 404
-
-    db.session.delete(complaint)
-    db.session.commit()
-
-    return jsonify({'success': True})
 
 @app.route('/enroll', methods=['POST'])
 def enroll_user():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
+          
     data = request.get_json()
     role = data.get('role')
     username = data.get('username')
@@ -198,7 +224,7 @@ def enroll_user():
 
     return jsonify({'message': 'User created successfully'}), 201
 
-@app.route('/complaints', methods=['GET'])
+@app.route('/fetch_all_complaints', methods=['GET'])
 def fetch_all_complaints():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
@@ -210,7 +236,8 @@ def fetch_all_complaints():
         'complaint_number': c.complaint_number,
         'category': c.category,
         'description': c.description,
-        'date': c.date.isoformat()
+        'date': c.date.isoformat(),
+        'status': c.status  # Include status in the response
     } for c in complaints])
 
 @app.route('/complaints/<int:complaint_id>/<action>', methods=['POST'])
@@ -223,36 +250,60 @@ def handle_complaint_action(complaint_id, action):
         return jsonify({'message': 'Complaint not found'}), 404
 
     if action == 'accept':
-        message_to_tenant = 'The complaint was approved and a technician will be sent to assess the issue.'
-        message_to_finance_and_ceo = {
-            'Tenant': complaint.user.username,
-            'Complaint Number': complaint.complaint_number,
-            'Complaint Category': complaint.category,
-            'Complaint Description': complaint.description,
-            'Action': 'Accepted'
-        }
-        # Send messages to finance manager and CEO (placeholder logic)
+        complaint.status = 'Accepted'
     elif action == 'decline':
-        message_to_tenant = 'Unfortunately, it might take a while before the issue is resolved.'
-        message_to_ceo = {
-            'Tenant': complaint.user.username,
-            'Complaint Number': complaint.complaint_number,
-            'Complaint Category': complaint.category,
-            'Complaint Description': complaint.description,
-            'Action': 'Declined'
-        }
-        # Send message to CEO (placeholder logic)
+        complaint.status = 'Declined'
     else:
         return jsonify({'message': 'Invalid action'}), 400
 
-    # Placeholder for sending messages to tenant and other roles
-    print(message_to_tenant)
-    if action == 'accept':
-        print(message_to_finance_and_ceo)
-    else:
-        print(message_to_ceo)
+    db.session.commit()
 
     return jsonify({'message': f'Complaint {action}ed successfully'})
+
+
+@app.route('/accept-complaint/<int:complaint_id>', methods=['POST'])
+def accept_complaint(complaint_id):
+    if 'user_id' not in session:
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    complaint = Complaint.query.get(complaint_id)
+    if not complaint:
+        return jsonify({'message': 'Complaint not found'}), 404
+
+    complaint.status = 'Accepted'
+    db.session.commit()
+
+    return jsonify({'success': True, 'complaint_number': complaint.complaint_number})
+
+@app.route('/decline-complaint/<int:complaint_id>', methods=['POST'])
+def decline_complaint(complaint_id):
+    if 'user_id' not in session:
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    complaint = Complaint.query.get(complaint_id)
+    if not complaint:
+        return jsonify({'message': 'Complaint not found'}), 404
+
+    complaint.status = 'Declined'
+    db.session.commit()
+
+    return jsonify({'success': True, 'complaint_number': complaint.complaint_number})
+
+@app.route('/accepted-complaints', methods=['GET'])
+def get_accepted_complaints():
+    if 'user_id' not in session:
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    complaints = Complaint.query.filter_by(status='Accepted').all()
+    return jsonify([{
+        'id': c.id,
+        'complaintNumber': c.complaint_number,
+        'category': c.category,
+        'budgetBalance': c.budget_balance,
+        'amountAllocated': c.amount_allocated,
+        'date': c.date.isoformat()
+    } for c in complaints])
+
 
 def init_db():
     with app.app_context():
