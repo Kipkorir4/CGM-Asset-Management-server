@@ -84,10 +84,10 @@ def logout():
 
 @app.route('/complaints/<int:user_id>', methods=['GET'])
 def get_complaints(user_id):
-    if 'user_id' not in session or session['user_id'] != user_id:
-        print("SESSION IN COMPLAINTS: ", session)
-        print("USER_ID IN COMPLAINTS: ", session['user_id'])
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session or session['user_id'] != user_id:
+    #     print("SESSION IN COMPLAINTS: ", session)
+    #     print("USER_ID IN COMPLAINTS: ", session['user_id'])
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     complaints = Complaint.query.filter_by(user_id=user_id).all()
     return jsonify([{
@@ -96,9 +96,6 @@ def get_complaints(user_id):
         'description': c.description,
         'date': c.date.isoformat()
     } for c in complaints])
-
-
-
 
 
 @app.route('/complaints', methods=['POST'])
@@ -131,27 +128,6 @@ def handle_complaints():
         db.session.commit()
 
         return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
-
-
-@app.route('/complaints/<int:user_id>', methods=['GET'])
-def get_user_complaints(user_id):
-
-    # print("SESSION: ", session) 
-    print("XXXXXX")
-    if 'user_id' not in session or session['user_id'] != user_id:
-        return jsonify({'message': 'Unauthorized'}), 403
-
-    complaints = Complaint.query.filter_by(user_id=user_id).all()
-    
-    return jsonify([{
-        'id': c.id,
-        # 'complaint_number': c.complaint_number,
-        'category': c.category,
-        'description': c.description,
-        'status': c.status,
-        # 'amount_allocated': c.amount_allocated,
-        'date': c.date.isoformat()  # Formatting the date
-    } for c in complaints])
 
 
 @app.route('/users/<role>', methods=['GET'])
