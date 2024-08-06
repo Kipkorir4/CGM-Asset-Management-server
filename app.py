@@ -90,35 +90,34 @@ def get_complaints(user_id):
 
 @app.route('/complaints', methods=['POST'])
 def handle_complaints():
-    # print(session.keys())
-    # if 'user_id' not in session:
-    #     return jsonify({'message': 'Unauthorized'}), 403
     if request.method == 'POST':
         data = request.get_json()
-        print("data:", data)
-        # user_id = session['user_id']
-                # print(session['useer_id'])
-        return jsonify({'success': True, 'complaint_number': "Done"})
 
-        # category = data.get('category')
-        # description = data.get('description')
-        # complaint_date = date.today()
+        print("DATA", data)
+        category = data.get('category')
+        user_id = data.get('userId')
+        description = data.get('description')
+        complaint_date = date.today()
 
-        # new_complaint = Complaint(
-        #     # user_id=user_id,
-        #     category=category,
-        #     description=description,
-        #     date=complaint_date,
-        #     status='Pending'  # Set the default status to Pending
-        # )
-        # db.session.add(new_complaint)
-        # db.session.commit()
 
-        # # Generate complaint number
-        # new_complaint.complaint_number = f"CMP{new_complaint.id:05d}"  # CMP00001, CMP00002, etc.
-        # db.session.commit()
+        if user_id is None:
+            return jsonify({'error': 'User ID is required'}), 400
 
-        # return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
+        new_complaint = Complaint(
+            user_id=user_id,
+            category=category,
+            description=description,
+            date=complaint_date,
+            status='Pending'  # Set the default status to Pending
+        )
+        db.session.add(new_complaint)
+        db.session.commit()
+
+        # Generate complaint number
+        new_complaint.complaint_number = f"CMP{new_complaint.id:05d}"  # CMP00001, CMP00002, etc.
+        db.session.commit()
+
+        return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
 
 
 @app.route('/complaints/<int:user_id>', methods=['GET'])
