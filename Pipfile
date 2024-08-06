@@ -11,6 +11,9 @@ flask-bcrypt = "*"
 datetime = "*"
 flask-migrate = "*"
 flask-restful = "*"
+gunicorn = "*"
+psycopg2-binary = "*"
+sqlalchemy-serializer = "*"
 
 [dev-packages]
 
