@@ -72,6 +72,7 @@ def login():
             "role": user.role,
         }
         # Ensure the session is marked as modified
+        print("SESSION AFTER LOGIN:", session)
         return jsonify({'message': f'Welcome, {user.role}', 'role': user.role, "user": userObjs}), 200
     else:
         return jsonify({'message': 'Invalid username or password'}), 401
@@ -83,9 +84,9 @@ def logout():
 
 @app.route('/complaints/<int:user_id>', methods=['GET'])
 def get_complaints(user_id):
-    print("SESSION: ", session)
-    print("USER_ID: ", session['user_id'])
     if 'user_id' not in session or session['user_id'] != user_id:
+        print("SESSION IN COMPLAINTS: ", session)
+        print("USER_ID IN COMPLAINTS: ", session['user_id'])
         return jsonify({'message': 'Unauthorized'}), 403
 
     complaints = Complaint.query.filter_by(user_id=user_id).all()
