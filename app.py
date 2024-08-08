@@ -94,7 +94,8 @@ def get_complaints(user_id):
         'id': c.id,
         'category': c.category,
         'description': c.description,
-        'date': c.date.isoformat()
+        'date': c.date.isoformat(),
+        'status': c.status
     } for c in complaints])
 
 
@@ -130,18 +131,44 @@ def handle_complaints():
         return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
 
 
-@app.route('/users/<role>', methods=['GET'])
-def get_users_by_role(role):
+# @app.route('/users/<role>', methods=['GET'])
+# def get_users_by_role(role):
+#     if 'user_id' not in session:
+#         return jsonify({'message': 'Unauthorized'}), 403
+    
+#     users = User.query.filter_by(role=role).all()
+#     return jsonify([user.to_dict() for user in users])
+
+
+@app.route('/all-users', methods=['GET'])
+def get_all_users():
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
+
+    users = User.query.all()
+    return jsonify([{
+        'username': user.username,
+        'role': user.role
+    } for user in users])
+
+
+
+@app.route('/users/<username>', methods=['GET'])
+def get_user_by_username(username):
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
     
-    users = User.query.filter_by(role=role).all()
-    return jsonify([user.to_dict() for user in users])
+    user = User.query.filter_by(username=username).first()
+    if user:
+        return jsonify(user.to_dict())
+    else:
+        return jsonify({'message': 'User not found'}), 404
+
 
 @app.route('/all-complaints', methods=['GET'])
 def get_all_complaints():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     complaints = Complaint.query.all()
     return jsonify([{
@@ -153,27 +180,26 @@ def get_all_complaints():
         'amount_allocated': c.amount_allocated
     } for c in complaints])
 
-@app.route('/setup_budget', methods=['POST'])
-def setup_budget():
-    data = request.get_json()
-    category = data.get('category')
-    total_budget = data.get('total_budget')
-    balance = total_budget
+# @app.route('/setup_budget', methods=['POST'])
+# def setup_budget():
+#     data = request.get_json()
+#     category = data.get('category')
+#     total_budget = data.get('total_budget')
+#     balance = total_budget
 
-    new_budget = Budget(category=category, total_budget=total_budget, balance=balance)
-    db.session.add(new_budget)
-    db.session.commit()
+#     new_budget = Budget(category=category, total_budget=total_budget, balance=balance)
+#     db.session.add(new_budget)
+#     db.session.commit()
 
-    return jsonify({'message': 'Budget set up successfully'}), 201
+#     return jsonify({'message': 'Budget set up successfully'}), 201
 
-@app.route('/allocate_budget', methods=['POST'])
-def allocate_budget():
+@app.route('/allocate_budget/<int:complaint_id>', methods=['POST'])
+def allocate_budget(complaint_id):
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
 
     data = request.get_json()
-    complaint_id = data.get('complaint_id')
-    allocation_amount = data.get('allocation_amount')
+    allocation_amount = data.get('amount')
 
     complaint = Complaint.query.get(complaint_id)
     if not complaint:
@@ -216,6 +242,8 @@ def enroll_user():
 
     return jsonify({'message': 'User created successfully'}), 201
 
+
+# this is where a logged in p.manger fetches complaints
 @app.route('/fetch_all_complaints', methods=['GET'])
 def fetch_all_complaints():
     if 'user_id' not in session:
@@ -291,10 +319,44 @@ def get_accepted_complaints():
         'id': c.id,
         'complaintNumber': c.complaint_number,
         'category': c.category,
-        'budgetBalance': c.budget_balance,
+        # 'budgetBalance': c.budget_balance,
         'amountAllocated': c.amount_allocated,
         'date': c.date.isoformat()
     } for c in complaints])
+
+
+@app.route('/allocated-complaints', methods=['GET'])
+def get_allocated_complaints():
+    if 'user_id' not in session:
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    complaints = Complaint.query.filter(Complaint.amount_allocated > 0).all()
+    allocated_complaints = [{
+        'complaint_number': complaint.complaint_number,
+        'category': complaint.category,
+        'amount_allocated': complaint.amount_allocated
+    } for complaint in complaints]
+
+    return jsonify(allocated_complaints)
+
+
+@app.route('/current-budget-balances', methods=['GET'])
+def current_budget_balances():
+    if 'user_id' not in session:
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    budgets = Budget.query.all()
+    if not budgets:
+        return jsonify({'message': 'No budget information available'}), 404
+
+    # Create a list of dictionaries for each budget
+    budget_data = [{'category': budget.category, 'balance_amount': budget.balance} for budget in budgets]
+
+    return jsonify(budget_data)
+
+
+
+
 
 
 def init_db():
