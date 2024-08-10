@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 from flask_restful import Api, Resource
 from models import db, User, Complaint, Budget
 from datetime import date
+from flasgger import Swagger, swag_from
 import json
 
 app = Flask(__name__)
@@ -17,6 +18,9 @@ db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app, supports_credentials=True)
 api = Api(app)
+
+# Initialize Swagger
+swagger =Swagger(app)
 
 class ClearSession(Resource):
     def delete(self):
@@ -39,6 +43,37 @@ api.add_resource(ClearSession, '/clear-session')
 api.add_resource(CheckSession, '/check-session')
 
 @app.route('/login', methods=['POST'])
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'User logged in successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'},
+                    'role': {'type': 'string'},
+                    'user': {
+                        'type': 'object',
+                        'properties': {
+                            'user_id': {'type': 'integer'},
+                            'username': {'type': 'string'},
+                            'role': {'type': 'string'},
+                        }
+                    }
+                }
+            }
+        },
+        401: {
+            'description': 'Invalid username or password',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def login():
     data = request.get_json()
     username = data.get('username')
@@ -65,8 +100,21 @@ def login():
         return jsonify({'message': f'Welcome, {user.role}', 'role': user.role, "user": userObjs}), 200
     else:
         return jsonify({'message': 'Invalid username or password'}), 401
-
+#adding swagger documentation to the logout route
 @app.route('/logout', methods=['POST'])
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'User logged out successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def logout():
     session.pop('user_id', None)
     return jsonify({'message': 'Logged out successfully'}), 200
@@ -89,6 +137,45 @@ def get_complaints(user_id):
 
 
 @app.route('/complaints', methods=['POST'])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'category': {'type': 'string'},
+                    'userId': {'type': 'integer'},
+                    'description': {'type': 'string'},
+                },
+                'required': ['category', 'userId', 'description']
+            }
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'Complaint submitted successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'complaint_number': {'type': 'string'}
+                }
+            }
+        },
+        400: {
+            'description': 'User ID is required',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'error': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def handle_complaints():
     if request.method == 'POST':
         data = request.get_json()
@@ -121,6 +208,44 @@ def handle_complaints():
 
 
 @app.route('/complaints/<int:user_id>', methods=['GET'])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'user_id',
+            'in': 'path',
+            'type': 'integer',
+            'required': True,
+            'description': 'ID of the user to fetch complaints for'
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'List of complaints for the specified user',
+            'schema': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'id': {'type': 'integer'},
+                        'category': {'type': 'string'},
+                        'description': {'type': 'string'},
+                        'status': {'type': 'string'},
+                        'date': {'type': 'string', 'format': 'date'}
+                    }
+                }
+            }
+        },
+        403: {
+            'description': 'Unauthorized access',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def get_user_complaints(user_id):
     # if 'user_id' not in session or session['user_id'] != user_id:
         # return jsonify({'message': 'Unauthorized'}), 403
@@ -139,6 +264,42 @@ def get_user_complaints(user_id):
 
 
 @app.route('/users/<role>', methods=['GET'])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'role',
+            'in': 'path',
+            'type': 'string',
+            'required': True,
+            'description': 'Role of users to fetch'
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'List of users with the specified role',
+            'schema': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'id': {'type': 'integer'},
+                        'username': {'type': 'string'},
+                        'role': {'type': 'string'}
+                    }
+                }
+            }
+        },
+        403: {
+            'description': 'Unauthorized access',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def get_users_by_role(role):
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
@@ -147,6 +308,36 @@ def get_users_by_role(role):
     return jsonify([user.to_dict() for user in users])
 
 @app.route('/all-complaints', methods=['GET'])
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'List of all complaints',
+            'schema': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'tenant': {'type': 'string'},
+                        'complaint_number': {'type': 'integer'},
+                        'category': {'type': 'string'},
+                        'description': {'type': 'string'},
+                        'status': {'type': 'string'},
+                        'amount_allocated': {'type': 'number'}
+                    }
+                }
+            }
+        },
+        403: {
+            'description': 'Unauthorized access',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def get_all_complaints():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
@@ -162,6 +353,34 @@ def get_all_complaints():
     } for c in complaints])
 
 @app.route('/setup_budget', methods=['POST'])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'category': {'type': 'string'},
+                    'total_budget': {'type': 'number'}
+                },
+                'required': ['category', 'total_budget']
+            }
+        }
+    ],
+    'responses': {
+        201: {
+            'description': 'Budget set up successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def setup_budget():
     data = request.get_json()
     category = data.get('category')
@@ -175,6 +394,63 @@ def setup_budget():
     return jsonify({'message': 'Budget set up successfully'}), 201
 
 @app.route('/allocate_budget', methods=['POST'])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'complaint_id': {'type': 'integer'},
+                    'allocation_amount': {'type': 'number'}
+                },
+                'required': ['complaint_id', 'allocation_amount']
+            }
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'Budget allocated successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'complaint_number': {'type': 'string'},
+                    'new_balance': {'type': 'number'}
+                }
+            }
+        },
+        403: {
+            'description': 'Unauthorized access',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        },
+        404: {
+            'description': 'Complaint or budget not found',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        },
+        400: {
+            'description': 'Insufficient budget balance',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def allocate_budget():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
@@ -205,6 +481,44 @@ def allocate_budget():
 
 
 @app.route('/enroll', methods=['POST'])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'username': {'type': 'string'},
+                    'password': {'type': 'string'},
+                    'role': {'type': 'string'}
+                },
+                'required': ['username', 'password', 'role']
+            }
+        }
+    ],
+    'responses': {
+        201: {
+            'description': 'User enrolled successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        },
+        400: {
+            'description': 'Username already exists',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def enroll_user():
     # if 'user_id' not in session:
     #     return jsonify({'message': 'Unauthorized'}), 403
@@ -225,6 +539,37 @@ def enroll_user():
     return jsonify({'message': 'User created successfully'}), 201
 
 @app.route('/fetch_all_complaints', methods=['GET'])
+@swag_from({
+    'responses': {
+        200: {
+            'description': 'List of all complaints',
+            'schema': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'id': {'type': 'integer'},
+                        'tenant': {'type': 'string'},
+                        'complaint_number': {'type': 'string'},
+                        'category': {'type': 'string'},
+                        'description': {'type': 'string'},
+                        'date': {'type': 'string', 'format': 'date'},
+                        'status': {'type': 'string'}
+                    }
+                }
+            }
+        },
+        403: {
+            'description': 'Unauthorized access',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def fetch_all_complaints():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
@@ -241,6 +586,64 @@ def fetch_all_complaints():
     } for c in complaints])
 
 @app.route('/complaints/<int:complaint_id>/<action>', methods=['POST'])
+@swag_from({
+    'parameters': [
+        {
+            'name': 'complaint_id',
+            'in': 'path',
+            'type': 'integer',
+            'required': True,
+            'description': 'ID of the complaint to perform an action on'
+        },
+        {
+            'name': 'action',
+            'in': 'path',
+            'type': 'string',
+            'enum': ['approve', 'reject'],
+            'required': True,
+            'description': 'Action to perform on the complaint (approve or reject)'
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'Complaint action performed successfully',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'},
+                    'status': {'type': 'string'}
+                }
+            }
+        },
+        403: {
+            'description': 'Unauthorized access',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        },
+        404: {
+            'description': 'Complaint not found',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        },
+        400: {
+            'description': 'Invalid action',
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    }
+})
 def handle_complaint_action(complaint_id, action):
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
