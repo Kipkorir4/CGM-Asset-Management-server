@@ -128,7 +128,7 @@ def request_password_reset():
     
     
     # Reset link with token
-    reset_link = f"http://127.0.0.1:5173/reset-password?token={token}"
+    reset_link = f"https://cgm-staging-g4m95dpei-kipkorir4s-projects.vercel.app/reset-password?token={token}"
     
     send_password_reset_email(user.email, reset_link)
     
@@ -339,7 +339,7 @@ def enroll_user():
     token = generate_reset_token(email)
     
     # Adjust the reset link to include the role for new users
-    reset_link = f"http://127.0.0.1:5173/{role}/reset_password/{token}"
+    reset_link = f"https://cgm-staging-g4m95dpei-kipkorir4s-projects.vercel.app/{role}/reset_password/{token}"
     
     send_enrollment_email(email, username, reset_link)
 
