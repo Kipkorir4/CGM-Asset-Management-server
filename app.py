@@ -18,10 +18,7 @@ app = Flask(__name__)
 
 environment = os.environ.get("ENVIRONMENT")
 
-if environment == "development":
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cgm.db'
-else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URI")
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URI")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'aiileonikumotomanze'

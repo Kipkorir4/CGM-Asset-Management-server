@@ -1,8 +1,8 @@
-"""initialised after adding email column
+"""create cgm22 tables
 
-Revision ID: a5119334964e
+Revision ID: f5c3f0a6a755
 Revises: 
-Create Date: 2024-08-08 15:38:05.927699
+Create Date: 2024-08-12 13:54:41.321725
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'a5119334964e'
+revision = 'f5c3f0a6a755'
 down_revision = None
 branch_labels = None
 depends_on = None
