@@ -2,14 +2,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, url_for
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_restful import Api, Resource
+from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Complaint, Budget
 from datetime import date
 import json
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer
 
 app = Flask(__name__)
 
@@ -23,11 +26,25 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'aiileonikumotomanze'
 
+serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
+# Flask-Mail configuration
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = (
+    os.environ.get('MAIL_DEFAULT_SENDER_NAME'), 
+    os.environ.get('MAIL_DEFAULT_SENDER_EMAIL')
+)
+
 # Initialize the extensions
 db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app, supports_credentials=True)
 api = Api(app)
+mail = Mail(app)
 
 class ClearSession(Resource):
     def delete(self):
@@ -48,6 +65,78 @@ class CheckSession(Resource):
 api.add_resource(ClearSession, '/clear-session')
 api.add_resource(CheckSession, '/check-session')
 
+# reset password routes
+def generate_reset_token(email):
+    return serializer.dumps(email, salt='password-reset-salt')
+
+def verify_reset_token(token, expiration=3600):
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=expiration)
+    except:
+        return None
+    return email
+
+# reset password route
+def send_password_reset_email(to_email, reset_link):
+    msg = Message(subject="Password Reset Request",
+                  sender=('CGM Properties', 'ceocgm@gmail.com'),
+                  recipients=[to_email])
+    msg.body = f'''To reset your password, visit the following link:
+{reset_link}
+
+If you did not make this request then simply ignore this email and no changes will be made.
+'''
+    mail.send(msg)
+
+# for new users to set new password
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    email = verify_reset_token(token)
+    if not email:
+        return jsonify({'message': 'The token is invalid or has expired'}), 400
+
+    if request.method == 'POST':
+        data = request.get_json()
+        new_password = data.get('password')
+        
+        if not new_password:
+            return jsonify({'message': 'Please provide a new password'}), 400
+
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.password_hash = new_password  # Ensure password is hashed
+            db.session.commit()
+            return jsonify({'message': 'Your password has been updated successfully'}), 200
+        else:
+            return jsonify({'message': 'User not found'}), 404
+
+    # If it's a GET request
+    return jsonify({'message': 'Please provide a new password'}), 200
+
+# for existing users
+@app.route('/request-password-reset', methods=['POST'])
+def request_password_reset():
+    data = request.get_json()
+    email = data.get('email')
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'message': 'Email not found'}), 404
+
+    # Generate token
+    token = generate_reset_token(user.email)
+    
+    
+    # Reset link with token
+    reset_link = f"http://127.0.0.1:5173/reset-password?token={token}"
+    
+    send_password_reset_email(user.email, reset_link)
+    
+    
+    return jsonify({'message': 'Password reset email sent successfully. Redirecting you to homepage in 5 seconds.'}), 200
+
+
+# Login verific
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -224,23 +313,51 @@ def allocate_budget(complaint_id):
 
 @app.route('/enroll', methods=['POST'])
 def enroll_user():
-    # if 'user_id' not in session:
-    #     return jsonify({'message': 'Unauthorized'}), 403
-
-          
     data = request.get_json()
     role = data.get('role')
     username = data.get('username')
-    password = data.get('password')
+    email = data.get('email')
 
-    if User.query.filter_by(username=username).first():
-        return jsonify({'message': 'Username already exists'}), 400
+    temp_password = 'Temp1234'  # Or generate a random one
 
-    new_user = User(username=username, password=password, role=role)
-    db.session.add(new_user)
-    db.session.commit()
+    user = User.query.filter((User.username == username) | (User.email == email)).first()
+    if user:
+        user.role = role
+        user.password_hash = temp_password
+        user.email = email
+        db.session.commit()
+        message = 'User updated successfully'
+        status_code = 200
+    else:
+        user = User(username=username, role=role, email=email)
+        user.password_hash = temp_password
+        db.session.add(user)
+        db.session.commit()
+        message = 'User created successfully and an email sent to the user'
+        status_code = 201
 
-    return jsonify({'message': 'User created successfully'}), 201
+    token = generate_reset_token(email)
+    
+    # Adjust the reset link to include the role for new users
+    reset_link = f"http://127.0.0.1:5173/{role}/reset_password/{token}"
+    
+    send_enrollment_email(email, username, reset_link)
+
+    return jsonify({'message': message}), status_code
+
+def send_enrollment_email(recipient_email, username, reset_link):
+    msg = Message("Complete Your Enrollment", recipients=[recipient_email])
+    msg.body = (
+    f"Dear {username},\n\n"
+    "You have been enrolled successfully.\n\n"
+    "To set your password, please visit the following link:\n"
+    f"{reset_link}\n\n"
+    f"Use the username, {username}, then the password you'll set to login.\n\n"
+    "Best Regards,\n"
+    "CGM Properties"
+)
+    mail.send(msg)
+# the end
 
 
 # this is where a logged in p.manger fetches complaints
@@ -354,7 +471,54 @@ def current_budget_balances():
 
     return jsonify(budget_data)
 
+# for user POST request of new password after 'forgot password'
+def hash_password(password):
+    """
+    Hashes the provided password using a secure algorithm.
+    
+    :param password: The plain-text password to hash.
+    :return: A hashed password that can be safely stored in the database.
+    """
+    return generate_password_hash(password)
 
+def verify_password(stored_password_hash, provided_password):
+    """
+    Verifies a provided password against the stored hash.
+    
+    :param stored_password_hash: The hashed password stored in the database.
+    :param provided_password: The plain-text password provided by the user.
+    :return: True if the password matches the hash, otherwise False.
+    """
+    return check_password_hash(stored_password_hash, provided_password)
+
+@app.route('/api/reset-password', methods=['POST'])
+def reset1_password():
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('newPassword')
+
+    if not token or not new_password:
+        return jsonify({'message': 'Token and new password are required.'}), 400
+
+    # Verify the token
+    email = verify_reset_token(token)
+    if not email:
+        return jsonify({'message': 'Invalid or expired token.'}), 400
+
+    # Find the user and update their password
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'message': 'User not found.'}), 404
+
+    user.password_hash = new_password  # This will automatically hash the password using the setter method
+    db.session.commit()
+    
+    role = user.role  # Adjust according to your user model
+    return jsonify({'message': 'Password reset successfully.', 'role': role}), 200
+
+
+
+    
 
 
 
@@ -362,28 +526,32 @@ def current_budget_balances():
 def init_db():
     with app.app_context():
         db.create_all()
-        # Add default users if they don't exist
-        if not User.query.filter_by(username='mainman').first():
-            user = User(username='mainman', role='CEO')
-            user.password_hash = 'mkubwawaCGM'
-            db.session.add(user)
         
-        if not User.query.filter_by(username='houseman').first():
-            user = User(username='houseman', role='Tenant')
-            user.password_hash = 'rentyaCGM'
-            db.session.add(user)
+        # Upsert logic for default users
+        users_data = [
+            {'username': 'mainman', 'role': 'CEO', 'email': 'mainman@example.com', 'password': 'mkubwawaCGM'},
+            {'username': 'houseman', 'role': 'Tenant', 'email': 'houseman@example.com', 'password': 'rentyaCGM'},
+            {'username': 'pesawoman', 'role': 'Finance Manager', 'email': 'kimagetk@gmail.com', 'password': 'pesayaCGM'},
+            {'username': 'weraman', 'role': 'Procurement Manager', 'email': 'weraman@example.com', 'password': 'nikoCGM'}
+        ]
         
-        if not User.query.filter_by(username='pesawoman').first():
-            user = User(username='pesawoman', role='Finance Manager')
-            user.password_hash = 'pesayaCGM'
-            db.session.add(user)
-        
-        if not User.query.filter_by(username='weraman').first():
-            user = User(username='weraman', role='Procurement Manager')
-            user.password_hash = 'nikoCGM'
-            db.session.add(user)
+        for user_data in users_data:
+            user = User.query.filter_by(username=user_data['username']).first() or User.query.filter_by(email=user_data['email']).first()
+            if user:
+                user.role = user_data['role']
+                user.password_hash = user_data['password']
+            else:
+                user = User(
+                    username=user_data['username'], 
+                    role=user_data['role'], 
+                    email=user_data['email']
+                )
+                user.password_hash = user_data['password']
+                db.session.add(user)
 
         db.session.commit()
+
+
 
 if __name__ == '__main__':
     init_db()
