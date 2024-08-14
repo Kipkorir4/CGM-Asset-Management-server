@@ -2,6 +2,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import date
+from werkzeug.utils import secure_filename
+import os
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -50,6 +52,7 @@ class Complaint(db.Model):
     amount_allocated = db.Column(db.Float, default=0.0, nullable=True)
     complaint_number = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='Pending')  # Default status
+    image_path = db.Column(db.String(200), nullable=True)  # New field for image path
 
     __table_args__ = (
         db.UniqueConstraint('complaint_number', name='uq_complaint_number'),
@@ -69,6 +72,7 @@ class Complaint(db.Model):
         else:
             self.status = 'Denied'
         db.session.commit()
+
 
 class Budget(db.Model):
     __tablename__ = 'budgets'

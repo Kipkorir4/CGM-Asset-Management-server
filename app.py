@@ -3,22 +3,31 @@ load_dotenv()
 
 import os
 from flask import Flask, request, jsonify, session, url_for
+from flask import current_app as app
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_restful import Api, Resource
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from models import db, User, Complaint, Budget
 from datetime import date
 import json
+import time
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
+from PIL import Image
+from math import ceil
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
+
 
 environment = os.environ.get("ENVIRONMENT")
 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URI")
+if environment == "development":
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cgm.db'
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URI")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'aiileonikumotomanze'
@@ -35,6 +44,11 @@ app.config['MAIL_DEFAULT_SENDER'] = (
     os.environ.get('MAIL_DEFAULT_SENDER_NAME'), 
     os.environ.get('MAIL_DEFAULT_SENDER_EMAIL')
 )
+
+# Set up a directory to save uploaded images
+UPLOAD_FOLDER = 'uploads/'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Initialize the extensions
 db.init_app(app)
@@ -125,7 +139,7 @@ def request_password_reset():
     
     
     # Reset link with token
-    reset_link = f"https://cgm-staging.vercel.app/reset-password?token={token}"
+    reset_link = f"http://127.0.0.1:5173/reset-password?token={token}"
     
     send_password_reset_email(user.email, reset_link)
     
@@ -170,51 +184,102 @@ def logout():
 
 @app.route('/complaints/<int:user_id>', methods=['GET'])
 def get_complaints(user_id):
-    # if 'user_id' not in session or session['user_id'] != user_id:
-    #     print("SESSION IN COMPLAINTS: ", session)
-    #     print("USER_ID IN COMPLAINTS: ", session['user_id'])
-    #     return jsonify({'message': 'Unauthorized'}), 403
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        complaints_query = Complaint.query.filter_by(user_id=user_id).order_by(Complaint.complaint_number.desc())
+        paginated_complaints = complaints_query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        base_url = app.config.get('BASE_URL', 'http://127.0.0.1:5000')  # Get base URL from app config
+        
+        complaints_list = [
+            {
+                'id': complaint.id,
+                'description': complaint.description,
+                'category': complaint.category,
+                'date': complaint.date.strftime('%Y-%m-%d'),
+                'status': complaint.status,
+                'image_url': f'{base_url}/static/uploads/{os.path.basename(complaint.image_path)}' if complaint.image_path else None
+            } 
+            for complaint in paginated_complaints.items
+        ]
 
-    complaints = Complaint.query.filter_by(user_id=user_id).all()
-    return jsonify([{
-        'id': c.id,
-        'category': c.category,
-        'description': c.description,
-        'date': c.date.isoformat(),
-        'status': c.status
-    } for c in complaints])
+        return jsonify({
+            'complaints': complaints_list,
+            'total_pages': paginated_complaints.pages,
+            'current_page': paginated_complaints.page,
+            'has_next': paginated_complaints.has_next,
+            'has_prev': paginated_complaints.has_prev
+        })
+    except Exception as e:
+        print(f"Error fetching complaints: {str(e)}")
+        return jsonify({'error': 'An unexpected error occurred. Please try again later.'}), 500
 
+
+
+# tenant filing complaint
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/complaints', methods=['POST'])
 def handle_complaints():
-    if request.method == 'POST':
-        data = request.get_json()
-
-        print("DATA", data)
-        category = data.get('category')
-        user_id = data.get('userId')
-        description = data.get('description')
+    try:
+        category = request.form.get('category')
+        user_id = request.form.get('userId')
+        description = request.form.get('description')
         complaint_date = date.today()
-
 
         if user_id is None:
             return jsonify({'error': 'User ID is required'}), 400
+
+        # Handle image file if it exists
+        image = request.files.get('image')
+        image_path = None
+
+        if image:
+            try:
+                # Secure the filename and open the image file
+                filename = secure_filename(image.filename)
+                img = Image.open(image.stream)
+
+                # Resize the image
+                max_size = (800, 800)  # Max width and height
+                img.thumbnail(max_size)
+
+                # Create a unique filename
+                image_filename = f"{category.lower()}_{int(time.time())}.jpg"
+                image_path = os.path.join('static', 'uploads', image_filename)
+
+                # Save the image
+                img.save(image_path, format='JPEG', quality=85, optimize=True)
+
+            except Exception as e:
+                print(f"Failed to process image: {str(e)}")  # Log the specific image error
+                return jsonify({'error': f'Failed to process image: {str(e)}'}), 500
 
         new_complaint = Complaint(
             user_id=user_id,
             category=category,
             description=description,
             date=complaint_date,
-            status='Pending'  # Set the default status to Pending
+            status='Pending',
+            image_path=image_path  # Save the image path to the complaint
         )
         db.session.add(new_complaint)
         db.session.commit()
 
         # Generate complaint number
-        new_complaint.complaint_number = f"CMP{new_complaint.id:05d}"  # CMP00001, CMP00002, etc.
+        new_complaint.complaint_number = f"CMP{new_complaint.id:05d}"
         db.session.commit()
 
         return jsonify({'success': True, 'complaint_number': new_complaint.complaint_number})
+    
+    except Exception as e:
+        # Log the error and return a 500 response
+        print(f"Unexpected error: {str(e)}")
+        return jsonify({'error': 'An unexpected error occurred. Please try again later.'}), 500
+
 
 
 # @app.route('/users/<role>', methods=['GET'])
@@ -228,14 +293,32 @@ def handle_complaints():
 
 @app.route('/all-users', methods=['GET'])
 def get_all_users():
-    # if 'user_id' not in session:
-    #     return jsonify({'message': 'Unauthorized'}), 403
+    # Get pagination parameters
+    page = int(request.args.get('page', 1))  # Default to page 1
+    per_page = int(request.args.get('per_page', 10))  # Default to 10 items per page
 
-    users = User.query.all()
-    return jsonify([{
+    # Calculate offset
+    offset = (page - 1) * per_page
+
+    # Query for users with pagination
+    users_query = User.query.order_by(User.username)  # You can change the order if needed
+    total_count = users_query.count()
+    users = users_query.offset(offset).limit(per_page).all()
+
+    # Prepare the response
+    users_list = [{
         'username': user.username,
         'role': user.role
-    } for user in users])
+    } for user in users]
+
+    # Return paginated results
+    return jsonify({
+        'users': users_list,
+        'total_count': total_count,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': ceil(total_count / per_page)  # Calculate total pages
+    })
 
 
 
@@ -253,18 +336,44 @@ def get_user_by_username(username):
 
 @app.route('/all-complaints', methods=['GET'])
 def get_all_complaints():
-    # if 'user_id' not in session:
-    #     return jsonify({'message': 'Unauthorized'}), 403
+    # Get pagination parameters
+    page = int(request.args.get('page', 1))  # Default to page 1
+    per_page = int(request.args.get('per_page', 10))  # Default to 10 items per page
 
-    complaints = Complaint.query.all()
-    return jsonify([{
+    # Calculate offset
+    offset = (page - 1) * per_page
+
+    # Query for complaints with pagination
+    complaints_query = Complaint.query.order_by(Complaint.complaint_number.desc())
+    total_count = complaints_query.count()
+    complaints = complaints_query.offset(offset).limit(per_page).all()
+
+    base_url = app.config.get('BASE_URL', 'http://127.0.0.1:5000')  # Base URL for the image path
+    
+    # Prepare the response
+    complaints_list = [{
         'tenant': c.user.username,
         'complaint_number': c.id,
         'category': c.category,
         'description': c.description,
-        'status': 'Approved' if c.amount_allocated > 0 else 'Denied',
-        'amount_allocated': c.amount_allocated
-    } for c in complaints])
+        'status': (
+            'Allocated' if c.amount_allocated > 0 
+            else 'Insufficient Funds' if c.amount_allocated == 0 and c.status != 'Pending'
+            else 'Pending'
+        ),
+        'amount_allocated': c.amount_allocated,
+        'image_url': f'{base_url}/static/uploads/{os.path.basename(c.image_path)}' if c.image_path else None
+    } for c in complaints]
+
+    # Return paginated results
+    return jsonify({
+        'complaints': complaints_list,
+        'total_count': total_count,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': ceil(total_count / per_page)  # Calculate total pages
+    })
+
 
 # @app.route('/setup_budget', methods=['POST'])
 # def setup_budget():
@@ -336,7 +445,7 @@ def enroll_user():
     token = generate_reset_token(email)
     
     # Adjust the reset link to include the role for new users
-    reset_link = f"https://cgm-staging.vercel.app/{role}/reset_password/{token}"
+    reset_link = f"http://127.0.0.1:5173/{role}/reset_password/{token}"
     
     send_enrollment_email(email, username, reset_link)
 
@@ -363,17 +472,35 @@ def fetch_all_complaints():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
 
-    complaints = Complaint.query.all()
-    return jsonify([{
+    page = int(request.args.get('page', 1))  # Default to page 1
+    per_page = int(request.args.get('per_page', 10))  # Default to 10 items per page
+
+    complaints_query = Complaint.query.order_by(Complaint.complaint_number.desc())  # Sort complaints by complaint number descending
+    total_count = complaints_query.count()
+    complaints = complaints_query.offset((page - 1) * per_page).limit(per_page).all()
+    
+    base_url = app.config.get('BASE_URL', 'http://127.0.0.1:5000')  # Base URL for the image path
+
+    complaints_list = [{
         'id': c.id,
         'tenant': c.user.username,
         'complaint_number': c.complaint_number,
         'category': c.category,
         'description': c.description,
         'date': c.date.isoformat(),
-        'status': c.status  # Include status in the response
-    } for c in complaints])
+        'status': c.status,
+        'image_url': f'{base_url}/static/uploads/{os.path.basename(c.image_path)}' if c.image_path else None
+    } for c in complaints]
+    
+    return jsonify({
+        'complaints': complaints_list,
+        'total_count': total_count,
+        'page': page,
+        'per_page': per_page
+    })
 
+
+# pm actions
 @app.route('/complaints/<int:complaint_id>/<action>', methods=['POST'])
 def handle_complaint_action(complaint_id, action):
     if 'user_id' not in session:
@@ -428,15 +555,26 @@ def get_accepted_complaints():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
 
-    complaints = Complaint.query.filter_by(status='Accepted').all()
-    return jsonify([{
-        'id': c.id,
-        'complaintNumber': c.complaint_number,
-        'category': c.category,
-        # 'budgetBalance': c.budget_balance,
-        'amountAllocated': c.amount_allocated,
-        'date': c.date.isoformat()
-    } for c in complaints])
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 10, type=int)
+
+    complaints_query = Complaint.query.filter_by(status='Accepted')
+    total_complaints = complaints_query.count()
+    
+    complaints = complaints_query.paginate(page=page, per_page=limit, error_out=False).items
+
+    return jsonify({
+        'total': total_complaints,
+        'page': page,
+        'limit': limit,
+        'complaints': [{
+            'id': c.id,
+            'complaintNumber': c.complaint_number,
+            'category': c.category,
+            'amountAllocated': c.amount_allocated,
+            'date': c.date.isoformat()
+        } for c in complaints]
+    })
 
 
 @app.route('/allocated-complaints', methods=['GET'])
@@ -444,29 +582,49 @@ def get_allocated_complaints():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
 
-    complaints = Complaint.query.filter(Complaint.amount_allocated > 0).all()
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 10, type=int)
+
+    complaints_query = Complaint.query.filter(Complaint.amount_allocated > 0)
+    total_complaints = complaints_query.count()
+    
+    complaints = complaints_query.paginate(page=page, per_page=limit, error_out=False).items
+
     allocated_complaints = [{
         'complaint_number': complaint.complaint_number,
         'category': complaint.category,
         'amount_allocated': complaint.amount_allocated
     } for complaint in complaints]
 
-    return jsonify(allocated_complaints)
+    return jsonify({
+        'total': total_complaints,
+        'page': page,
+        'limit': limit,
+        'complaints': allocated_complaints
+    })
 
-
+# FM fetching budget balances
 @app.route('/current-budget-balances', methods=['GET'])
 def current_budget_balances():
     if 'user_id' not in session:
         return jsonify({'message': 'Unauthorized'}), 403
 
-    budgets = Budget.query.all()
-    if not budgets:
-        return jsonify({'message': 'No budget information available'}), 404
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 10, type=int)
 
-    # Create a list of dictionaries for each budget
+    budgets_query = Budget.query
+    total_budgets = budgets_query.count()
+
+    budgets = budgets_query.paginate(page=page, per_page=limit, error_out=False).items
+
     budget_data = [{'category': budget.category, 'balance_amount': budget.balance} for budget in budgets]
 
-    return jsonify(budget_data)
+    return jsonify({
+        'total': total_budgets,
+        'page': page,
+        'limit': limit,
+        'balances': budget_data
+    })
 
 # for user POST request of new password after 'forgot password'
 def hash_password(password):
