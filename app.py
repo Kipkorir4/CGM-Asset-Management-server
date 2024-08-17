@@ -24,10 +24,7 @@ app = Flask(__name__, static_folder='static', static_url_path='/static')
 
 environment = os.environ.get("ENVIRONMENT")
 
-if environment == "development":
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cgm.db'
-else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URI")
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URI")
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'aiileonikumotomanze'
@@ -139,7 +136,7 @@ def request_password_reset():
     
     
     # Reset link with token
-    reset_link = f"http://127.0.0.1:5173/reset-password?token={token}"
+    reset_link = f"https://cgm-properties.vercel.app/reset-password?token={token}"
     
     send_password_reset_email(user.email, reset_link)
     
@@ -324,8 +321,8 @@ def get_all_users():
 
 @app.route('/users/<username>', methods=['GET'])
 def get_user_by_username(username):
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
     
     user = User.query.filter_by(username=username).first()
     if user:
@@ -358,7 +355,7 @@ def get_all_complaints():
         'description': c.description,
         'status': (
             'Allocated' if c.amount_allocated > 0 
-            else 'Insufficient Funds' if c.amount_allocated == 0 and c.status != 'Pending'
+            else 'Unallocated' if c.amount_allocated == 0 and c.status != 'Pending'
             else 'Pending'
         ),
         'amount_allocated': c.amount_allocated,
@@ -390,8 +387,8 @@ def get_all_complaints():
 
 @app.route('/allocate_budget/<int:complaint_id>', methods=['POST'])
 def allocate_budget(complaint_id):
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     data = request.get_json()
     allocation_amount = data.get('amount')
@@ -445,7 +442,7 @@ def enroll_user():
     token = generate_reset_token(email)
     
     # Adjust the reset link to include the role for new users
-    reset_link = f"http://127.0.0.1:5173/{role}/reset_password/{token}"
+    reset_link = f"https://cgm-properties.vercel.app/{role}/reset_password/{token}"
     
     send_enrollment_email(email, username, reset_link)
 
@@ -469,8 +466,8 @@ def send_enrollment_email(recipient_email, username, reset_link):
 # this is where a logged in p.manger fetches complaints
 @app.route('/fetch_all_complaints', methods=['GET'])
 def fetch_all_complaints():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     page = int(request.args.get('page', 1))  # Default to page 1
     per_page = int(request.args.get('per_page', 10))  # Default to 10 items per page
@@ -503,8 +500,8 @@ def fetch_all_complaints():
 # pm actions
 @app.route('/complaints/<int:complaint_id>/<action>', methods=['POST'])
 def handle_complaint_action(complaint_id, action):
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     complaint = Complaint.query.get(complaint_id)
     if not complaint:
@@ -524,8 +521,8 @@ def handle_complaint_action(complaint_id, action):
 
 @app.route('/accept-complaint/<int:complaint_id>', methods=['POST'])
 def accept_complaint(complaint_id):
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     complaint = Complaint.query.get(complaint_id)
     if not complaint:
@@ -538,8 +535,8 @@ def accept_complaint(complaint_id):
 
 @app.route('/decline-complaint/<int:complaint_id>', methods=['POST'])
 def decline_complaint(complaint_id):
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     complaint = Complaint.query.get(complaint_id)
     if not complaint:
@@ -552,8 +549,8 @@ def decline_complaint(complaint_id):
 
 @app.route('/accepted-complaints', methods=['GET'])
 def get_accepted_complaints():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     page = request.args.get('page', 1, type=int)
     limit = request.args.get('limit', 10, type=int)
@@ -579,8 +576,8 @@ def get_accepted_complaints():
 
 @app.route('/allocated-complaints', methods=['GET'])
 def get_allocated_complaints():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     page = request.args.get('page', 1, type=int)
     limit = request.args.get('limit', 10, type=int)
@@ -606,8 +603,8 @@ def get_allocated_complaints():
 # FM fetching budget balances
 @app.route('/current-budget-balances', methods=['GET'])
 def current_budget_balances():
-    if 'user_id' not in session:
-        return jsonify({'message': 'Unauthorized'}), 403
+    # if 'user_id' not in session:
+    #     return jsonify({'message': 'Unauthorized'}), 403
 
     page = request.args.get('page', 1, type=int)
     limit = request.args.get('limit', 10, type=int)

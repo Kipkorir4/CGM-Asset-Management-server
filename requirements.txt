@@ -1,9 +1,9 @@
+-i https://pypi.org/simple
 alembic
 aniso8601
 bcrypt
 blinker
 click
-datetime
 flask
 flask-bcrypt
 flask-cors
@@ -18,6 +18,7 @@ jinja2
 mako
 markupsafe
 packaging
+pillow
 psycopg2-binary
 python-dotenv
 pytz
@@ -25,5 +26,6 @@ setuptools
 six
 sqlalchemy
 sqlalchemy-serializer
+typing-extensions
 werkzeug
 zope.interface

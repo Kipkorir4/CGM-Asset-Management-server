@@ -1,8 +1,8 @@
-"""create cgm22 tables
+"""create cgmdb tables
 
-Revision ID: f5c3f0a6a755
+Revision ID: 81ef42819648
 Revises: 
-Create Date: 2024-08-12 13:54:41.321725
+Create Date: 2024-08-17 23:18:43.608150
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'f5c3f0a6a755'
+revision = '81ef42819648'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -45,6 +45,7 @@ def upgrade():
     sa.Column('amount_allocated', sa.Float(), nullable=True),
     sa.Column('complaint_number', sa.String(length=20), nullable=True),
     sa.Column('status', sa.String(length=20), nullable=False),
+    sa.Column('image_path', sa.String(length=200), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('complaint_number', name='uq_complaint_number')
