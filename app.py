@@ -188,7 +188,7 @@ def get_complaints(user_id):
         complaints_query = Complaint.query.filter_by(user_id=user_id).order_by(Complaint.complaint_number.desc())
         paginated_complaints = complaints_query.paginate(page=page, per_page=per_page, error_out=False)
         
-        base_url = app.config.get('BASE_URL', 'http://127.0.0.1:5000')  # Get base URL from app config
+        base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com/')  # Get base URL from app config
         
         complaints_list = [
             {
@@ -345,7 +345,7 @@ def get_all_complaints():
     total_count = complaints_query.count()
     complaints = complaints_query.offset(offset).limit(per_page).all()
 
-    base_url = app.config.get('BASE_URL', 'http://127.0.0.1:5000')  # Base URL for the image path
+    base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com/')  # Base URL for the image path
     
     # Prepare the response
     complaints_list = [{
@@ -476,7 +476,7 @@ def fetch_all_complaints():
     total_count = complaints_query.count()
     complaints = complaints_query.offset((page - 1) * per_page).limit(per_page).all()
     
-    base_url = app.config.get('BASE_URL', 'http://127.0.0.1:5000')  # Base URL for the image path
+    base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com/')  # Base URL for the image path
 
     complaints_list = [{
         'id': c.id,
