@@ -19,8 +19,10 @@ from itsdangerous import URLSafeTimedSerializer
 from PIL import Image
 from math import ceil
 
-app = Flask(__name__, static_folder='static', static_url_path='/static')
+app = Flask(__name__, static_folder='media', static_url_path='/media')
 
+
+os.makedirs('media/uploads', exist_ok=True)
 
 environment = os.environ.get("ENVIRONMENT")
 
@@ -236,8 +238,14 @@ def handle_complaints():
 
         if image:
             try:
-                # Secure the filename and open the image file
+                # Secure the filename and check if the image format is supported
                 filename = secure_filename(image.filename)
+                allowed_formats = {'png', 'jpg', 'jpeg', 'gif'}
+                file_ext = filename.rsplit('.', 1)[1].lower()
+
+                if file_ext not in allowed_formats:
+                    return jsonify({'error': f'Unsupported image format. Allowed formats are: {", ".join(allowed_formats)}'}), 400
+
                 img = Image.open(image.stream)
 
                 # Resize the image
@@ -245,11 +253,11 @@ def handle_complaints():
                 img.thumbnail(max_size)
 
                 # Create a unique filename
-                image_filename = f"{category.lower()}_{int(time.time())}.jpg"
-                image_path = os.path.join('static', 'uploads', image_filename)
+                image_filename = f"{category.lower()}_{int(time.time())}.{file_ext}"
+                image_path = os.path.join('media', 'uploads', image_filename)
 
                 # Save the image
-                img.save(image_path, format='JPEG', quality=85, optimize=True)
+                img.save(image_path, format=img.format)
 
             except Exception as e:
                 print(f"Failed to process image: {str(e)}")  # Log the specific image error
