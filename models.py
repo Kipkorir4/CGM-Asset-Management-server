@@ -2,6 +2,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import date
+from werkzeug.utils import secure_filename
+import os
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
@@ -11,6 +13,7 @@ class User(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)  # Add email column
     role = db.Column(db.String(80), nullable=False)
     _password_hash = db.Column('password_hash', db.String(128), nullable=False)
 
@@ -27,10 +30,16 @@ class User(db.Model):
         return bcrypt.check_password_hash(self._password_hash, password.encode('utf-8'))
 
     def to_dict(self):
-        return {'id': self.id, 'username': self.username, 'role': self.role}
+        return {
+            'id': self.id, 
+            'username': self.username, 
+            'email': self.email,  # Include email in the to_dict method
+            'role': self.role
+        }
 
     def __repr__(self):
         return f'<User {self.username}>'
+
 
 class Complaint(db.Model):
     __tablename__ = 'complaints'
@@ -43,6 +52,7 @@ class Complaint(db.Model):
     amount_allocated = db.Column(db.Float, default=0.0, nullable=True)
     complaint_number = db.Column(db.String(20), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='Pending')  # Default status
+    image_path = db.Column(db.String(200), nullable=True)  # New field for image path
 
     __table_args__ = (
         db.UniqueConstraint('complaint_number', name='uq_complaint_number'),
@@ -62,6 +72,7 @@ class Complaint(db.Model):
         else:
             self.status = 'Denied'
         db.session.commit()
+
 
 class Budget(db.Model):
     __tablename__ = 'budgets'
