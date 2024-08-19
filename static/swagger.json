@@ -1,0 +1,782 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "CGM PROPERTY API",
+      "version": "1.0.0"
+    },
+    "paths": {
+      "/clear-session": {
+        "delete": {
+          "summary": "Clear Session",
+          "description": "Clears the user session",
+          "operationId": "clearSession",
+          "responses": {
+            "204": {
+              "description": "Session cleared successfully"
+            }
+          }
+        }
+      },
+      "/check-session": {
+        "get": {
+          "summary": "Check Session",
+          "description": "Checks if a user session is active",
+          "operationId": "checkSession",
+          "responses": {
+            "200": {
+              "description": "Session active",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "integer", "example": 1 },
+                      "username": { "type": "string", "example": "mainman" },
+                      "role": { "type": "string", "example": "CEO" }
+                    }
+                  }
+                }
+              }
+            },
+            "204": {
+              "description": "No active session"
+            }
+          }
+        }
+      },
+      "/login": {
+        "post": {
+          "summary": "User Login",
+          "description": "Logs in a user",
+          "operationId": "loginUser",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "username": { "type": "string", "example": "mainman" },
+                    "password": { "type": "string", "example": "mkubwawaCGM" },
+                    "role": { "type": "string", "example": "CEO" }
+                  },
+                  "required": ["username", "password", "role"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Login successful",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Welcome, CEO" },
+                      "role": { "type": "string", "example": "CEO" },
+                      "user": {
+                        "type": "object",
+                        "properties": {
+                          "user_id": { "type": "integer", "example": 1 },
+                          "username": { "type": "string", "example": "mainman" },
+                          "role": { "type": "string", "example": "CEO" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Invalid credentials",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Invalid username or password" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/logout": {
+        "post": {
+          "summary": "User Logout",
+          "description": "Logs out a user",
+          "operationId": "logoutUser",
+          "responses": {
+            "200": {
+              "description": "Logout successful",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Logged out successfully" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/complaints/{user_id}": {
+        "get": {
+          "summary": "Get User Complaints",
+          "description": "Retrieves all complaints for a specific user",
+          "operationId": "getUserComplaints",
+          "parameters": [
+            {
+              "name": "user_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "example": 1
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "List of complaints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer", "example": 1 },
+                        "category": { "type": "string", "example": "Maintenance" },
+                        "description": { "type": "string", "example": "Leaking roof" },
+                        "date": { "type": "string", "format": "date", "example": "2023-07-20" },
+                        "status": { "type": "string", "example": "Pending" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "post": {
+          "summary": "Create Complaint",
+          "description": "Creates a new complaint",
+          "operationId": "createComplaint",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "category": { "type": "string", "example": "Maintenance" },
+                    "userId": { "type": "integer", "example": 1 },
+                    "description": { "type": "string", "example": "Leaking roof" }
+                  },
+                  "required": ["category", "userId", "description"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Complaint created successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "success": { "type": "boolean", "example": true },
+                      "complaint_number": { "type": "string", "example": "CMP00001" }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid input",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "error": { "type": "string", "example": "User ID is required" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/users/{role}": {
+        "get": {
+          "summary": "Get Users by Role",
+          "description": "Retrieves all users with a specific role",
+          "operationId": "getUsersByRole",
+          "parameters": [
+            {
+              "name": "role",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "example": "CEO"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "List of users",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer", "example": 1 },
+                        "username": { "type": "string", "example": "mainman" },
+                        "role": { "type": "string", "example": "CEO" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/all-complaints": {
+        "get": {
+          "summary": "Get All Complaints",
+          "description": "Retrieves all complaints in the system",
+          "operationId": "getAllComplaints",
+          "responses": {
+            "200": {
+              "description": "A list of all complaints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tenant": { "type": "string", "example": "houseman" },
+                        "complaint_number": { "type": "integer", "example": 1 },
+                        "category": { "type": "string", "example": "Maintenance" },
+                        "description": { "type": "string", "example": "Leaking roof" },
+                        "status": { "type": "string", "example": "Approved" },
+                        "amount_allocated": { "type": "number", "format": "float", "example": 500.00 }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/setup_budget": {
+        "post": {
+          "summary": "Setup Budget",
+          "description": "Sets up a budget for a category",
+          "operationId": "setupBudget",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "category": { "type": "string", "example": "Maintenance" },
+                    "total_budget": { "type": "number", "format": "float", "example": 10000.00 }
+                  },
+                  "required": ["category", "total_budget"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Budget set up successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Budget set up successfully" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/allocate_budget": {
+        "post": {
+          "summary": "Allocate Budget",
+          "description": "Allocates budget to a complaint",
+          "operationId": "allocateBudget",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "complaint_id": { "type": "integer", "example": 1 },
+                    "allocation_amount": { "type": "number", "format": "float", "example": 500.00 }
+                  },
+                  "required": ["complaint_id", "allocation_amount"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Budget allocated successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "success": { "type": "boolean", "example": true },
+                      "complaint_number": { "type": "string", "example": "CMP00001" },
+                      "new_balance": { "type": "number", "format": "float", "example": 9500.00 }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Insufficient budget balance",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Insufficient budget balance" }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Complaint or budget not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Complaint not found" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/enroll": {
+        "post": {
+          "summary": "Enroll User",
+          "description": "Enrolls a new user",
+          "operationId": "enrollUser",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "username": { "type": "string", "example": "newuser" },
+                    "password": { "type": "string", "example": "newpassword" },
+                    "role": { "type": "string", "example": "Tenant" }
+                  },
+                  "required": ["username", "password", "role"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "User created successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "User created successfully" }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Username already exists",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Username already exists" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/fetch_all_complaints": {
+        "get": {
+          "summary": "Fetch All Complaints",
+          "description": "Fetches all complaints",
+          "operationId": "fetchAllComplaints",
+          "responses": {
+            "200": {
+              "description": "A list of all complaints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer", "example": 1 },
+                        "tenant": { "type": "string", "example": "houseman" },
+                        "complaint_number": { "type": "string", "example": "CMP00001" },
+                        "category": { "type": "string", "example": "Maintenance" },
+                        "description": { "type": "string", "example": "Leaking roof" },
+                        "date": { "type": "string", "format": "date", "example": "2023-07-20" },
+                        "status": { "type": "string", "example": "Pending" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/complaints/{complaint_id}/{action}": {
+        "post": {
+          "summary": "Handle Complaint Action",
+          "description": "Accepts or declines a complaint",
+          "operationId": "handleComplaintAction",
+          "parameters": [
+            {
+              "name": "complaint_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "example": 1
+              }
+            },
+            {
+              "name": "action",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "enum": ["accept", "decline"],
+                "example": "accept"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Complaint action handled successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Complaint accepted successfully" }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Complaint not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Complaint not found" }
+                    }
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Invalid action",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Invalid action" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/accept-complaint/{complaint_id}": {
+        "post": {
+          "summary": "Accept Complaint",
+          "description": "Accepts a complaint",
+          "operationId": "acceptComplaint",
+          "parameters": [
+            {
+              "name": "complaint_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "example": 1
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Complaint accepted successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "success": { "type": "boolean", "example": true },
+                      "complaint_number": { "type": "string", "example": "CMP00001" }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Complaint not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Complaint not found" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/decline-complaint/{complaint_id}": {
+        "post": {
+          "summary": "Decline Complaint",
+          "description": "Declines a complaint",
+          "operationId": "declineComplaint",
+          "parameters": [
+            {
+              "name": "complaint_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "example": 1
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Complaint declined successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "success": { "type": "boolean", "example": true },
+                      "complaint_number": { "type": "string", "example": "CMP00001" }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "Complaint not found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Complaint not found" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/accepted-complaints": {
+        "get": {
+          "summary": "Get Accepted Complaints",
+          "description": "Fetches all accepted complaints",
+          "operationId": "getAcceptedComplaints",
+          "responses": {
+            "200": {
+              "description": "A list of all accepted complaints",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "integer", "example": 1 },
+                        "complaintNumber": { "type": "string", "example": "CMP00001" },
+                        "category": { "type": "string", "example": "Maintenance" },
+                        "budgetBalance": { "type": "number", "format": "float", "example": 9500.00 },
+                        "amountAllocated": { "type": "number", "format": "float", "example": 500.00 },
+                        "date": { "type": "string", "format": "date", "example": "2023-07-20" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "403": {
+              "description": "Unauthorized",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Unauthorized" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
