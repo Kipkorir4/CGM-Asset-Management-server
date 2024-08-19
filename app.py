@@ -19,8 +19,10 @@ from itsdangerous import URLSafeTimedSerializer
 from PIL import Image
 from math import ceil
 
-app = Flask(__name__, static_folder='static', static_url_path='/static')
+app = Flask(__name__, static_folder='media', static_url_path='/media')
 
+
+os.makedirs('media/uploads', exist_ok=True)
 
 environment = os.environ.get("ENVIRONMENT")
 
@@ -188,7 +190,7 @@ def get_complaints(user_id):
         complaints_query = Complaint.query.filter_by(user_id=user_id).order_by(Complaint.complaint_number.desc())
         paginated_complaints = complaints_query.paginate(page=page, per_page=per_page, error_out=False)
         
-        base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com/')  # Get base URL from app config
+        base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com')  # Get base URL from app config
         
         complaints_list = [
             {
@@ -197,7 +199,7 @@ def get_complaints(user_id):
                 'category': complaint.category,
                 'date': complaint.date.strftime('%Y-%m-%d'),
                 'status': complaint.status,
-                'image_url': f'{base_url}/static/uploads/{os.path.basename(complaint.image_path)}' if complaint.image_path else None
+                'image_url': f'{base_url}/media/uploads/{os.path.basename(complaint.image_path)}' if complaint.image_path else None
             } 
             for complaint in paginated_complaints.items
         ]
@@ -236,8 +238,14 @@ def handle_complaints():
 
         if image:
             try:
-                # Secure the filename and open the image file
+                # Secure the filename and check if the image format is supported
                 filename = secure_filename(image.filename)
+                allowed_formats = {'png', 'jpg', 'jpeg', 'gif'}
+                file_ext = filename.rsplit('.', 1)[1].lower()
+
+                if file_ext not in allowed_formats:
+                    return jsonify({'error': f'Unsupported image format. Allowed formats are: {", ".join(allowed_formats)}'}), 400
+
                 img = Image.open(image.stream)
 
                 # Resize the image
@@ -245,11 +253,11 @@ def handle_complaints():
                 img.thumbnail(max_size)
 
                 # Create a unique filename
-                image_filename = f"{category.lower()}_{int(time.time())}.jpg"
-                image_path = os.path.join('static', 'uploads', image_filename)
+                image_filename = f"{category.lower()}_{int(time.time())}.{file_ext}"
+                image_path = os.path.join('media', 'uploads', image_filename)
 
                 # Save the image
-                img.save(image_path, format='JPEG', quality=85, optimize=True)
+                img.save(image_path, format=img.format)
 
             except Exception as e:
                 print(f"Failed to process image: {str(e)}")  # Log the specific image error
@@ -345,7 +353,7 @@ def get_all_complaints():
     total_count = complaints_query.count()
     complaints = complaints_query.offset(offset).limit(per_page).all()
 
-    base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com/')  # Base URL for the image path
+    base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com')  # Base URL for the image path
     
     # Prepare the response
     complaints_list = [{
@@ -359,7 +367,7 @@ def get_all_complaints():
             else 'Pending'
         ),
         'amount_allocated': c.amount_allocated,
-        'image_url': f'{base_url}/static/uploads/{os.path.basename(c.image_path)}' if c.image_path else None
+        'image_url': f'{base_url}/media/uploads/{os.path.basename(c.image_path)}' if c.image_path else None
     } for c in complaints]
 
     # Return paginated results
@@ -476,7 +484,7 @@ def fetch_all_complaints():
     total_count = complaints_query.count()
     complaints = complaints_query.offset((page - 1) * per_page).limit(per_page).all()
     
-    base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com/')  # Base URL for the image path
+    base_url = app.config.get('BASE_URL', 'https://cgm-asset-management-server.onrender.com')  # Base URL for the image path
 
     complaints_list = [{
         'id': c.id,
@@ -486,7 +494,7 @@ def fetch_all_complaints():
         'description': c.description,
         'date': c.date.isoformat(),
         'status': c.status,
-        'image_url': f'{base_url}/static/uploads/{os.path.basename(c.image_path)}' if c.image_path else None
+        'image_url': f'{base_url}/media/uploads/{os.path.basename(c.image_path)}' if c.image_path else None
     } for c in complaints]
     
     return jsonify({
